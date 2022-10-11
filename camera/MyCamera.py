@@ -154,6 +154,149 @@ def unsubscribeCameraStatus(camera):
     eventSubscribe.contents.release(eventSubscribe)
     return 0
 
+# 设置软触发
+# set software trigger
+def setSoftTriggerConf(camera):
+    # 创建AcquisitionControl节点
+    # create AcquisitionControl node
+    acqCtrlInfo = GENICAM_AcquisitionControlInfo()
+    acqCtrlInfo.pCamera = pointer(camera)
+    acqCtrl = pointer(GENICAM_AcquisitionControl())
+    nRet = GENICAM_createAcquisitionControl(pointer(acqCtrlInfo), byref(acqCtrl))
+    if (nRet != 0):
+        print("create AcquisitionControl fail!")
+        return -1
+
+    # 设置触发源为软触发
+    # set trigger source to Software
+    trigSourceEnumNode = acqCtrl.contents.triggerSource(acqCtrl)
+    nRet = trigSourceEnumNode.setValueBySymbol(byref(trigSourceEnumNode), b"Software")
+    if (nRet != 0):
+        print("set TriggerSource value [Software] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSourceEnumNode.release(byref(trigSourceEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSourceEnumNode.release(byref(trigSourceEnumNode))
+
+    # 设置触发方式
+    # set trigger selector to FrameStart
+    trigSelectorEnumNode = acqCtrl.contents.triggerSelector(acqCtrl)
+    nRet = trigSelectorEnumNode.setValueBySymbol(byref(trigSelectorEnumNode), b"FrameStart")
+    if (nRet != 0):
+        print("set TriggerSelector value [FrameStart] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+
+    # 打开触发模式
+    # set trigger mode to On
+    trigModeEnumNode = acqCtrl.contents.triggerMode(acqCtrl)
+    nRet = trigModeEnumNode.setValueBySymbol(byref(trigModeEnumNode), b"On")
+    if (nRet != 0):
+        print("set TriggerMode value [On] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigModeEnumNode.release(byref(trigModeEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放相关资源
+    # release node resource at the end of use
+    trigModeEnumNode.release(byref(trigModeEnumNode))
+    acqCtrl.contents.release(acqCtrl)
+
+    return 0
+
+
+# 设置外触发
+# set external trigger
+def setLineTriggerConf(camera):
+    # 创建AcquisitionControl节点
+    # create AcquisitionControl node
+    acqCtrlInfo = GENICAM_AcquisitionControlInfo()
+    acqCtrlInfo.pCamera = pointer(camera)
+    acqCtrl = pointer(GENICAM_AcquisitionControl())
+    nRet = GENICAM_createAcquisitionControl(pointer(acqCtrlInfo), byref(acqCtrl))
+    if (nRet != 0):
+        print("create AcquisitionControl fail!")
+        return -1
+
+    # 设置触发源为外触发Line1
+    # set trigger source to Line1
+    trigSourceEnumNode = acqCtrl.contents.triggerSource(acqCtrl)
+    nRet = trigSourceEnumNode.setValueBySymbol(byref(trigSourceEnumNode), b"Line1")
+    if (nRet != 0):
+        print("set TriggerSource value [Line1] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSourceEnumNode.release(byref(trigSourceEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSourceEnumNode.release(byref(trigSourceEnumNode))
+
+    # 设置触发方式
+    # set trigger selector to FrameStart
+    trigSelectorEnumNode = acqCtrl.contents.triggerSelector(acqCtrl)
+    nRet = trigSelectorEnumNode.setValueBySymbol(byref(trigSelectorEnumNode), b"FrameStart")
+    if (nRet != 0):
+        print("set TriggerSelector value [FrameStart] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+
+    # 打开触发模式
+    # set trigger mode to On
+    trigModeEnumNode = acqCtrl.contents.triggerMode(acqCtrl)
+    nRet = trigModeEnumNode.setValueBySymbol(byref(trigModeEnumNode), b"On")
+    if (nRet != 0):
+        print("set TriggerMode value [On] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigModeEnumNode.release(byref(trigModeEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigModeEnumNode.release(byref(trigModeEnumNode))
+
+    # 设置触发沿
+    # set trigger activation to RisingEdge
+    trigActivationEnumNode = acqCtrl.contents.triggerActivation(acqCtrl)
+    nRet = trigActivationEnumNode.setValueBySymbol(byref(trigActivationEnumNode), b"RisingEdge")
+    if (nRet != 0):
+        print("set TriggerActivation value [RisingEdge] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigActivationEnumNode.release(byref(trigActivationEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigActivationEnumNode.release(byref(trigActivationEnumNode))
+    acqCtrl.contents.release(acqCtrl)
+    return 0
 
 # 打开相机
 # open camera

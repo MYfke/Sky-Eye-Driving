@@ -120,14 +120,14 @@ def demo():
             streamSourceList[index].contents.release(streamSourceList[index])
             return -1
 
-    while True:
-        if len(package()) > 5:
-            print(package())
-            package().clear()
-        if cv2.waitKey(1):
-            global g_isStop
-            g_isStop = 1
-            break
+    # while True:
+    #     if len(package()) > 5:
+    #         print(package())
+    #         package().clear()
+    #     if cv2.waitKey(1):
+    #         global g_isStop
+    #         g_isStop = 1
+    #         break
 
         # images_batch, keypoints_3d_gt, keypoints_3d_validity_gt, proj_matricies_batch = dataset_utils.prepare_batch(
         #     batch, device, config)
@@ -138,10 +138,10 @@ def demo():
         #                                                                                   proj_matricies_batch,
 
     # 自由拉流 x 秒
-    # # grabbing x seconds
-    # time.sleep(g_Image_Grabbing_Timer)
-    # global g_isStop
-    # g_isStop = 1
+    # grabbing x seconds
+    time.sleep(g_Image_Grabbing_Timer)
+    global g_isStop
+    g_isStop = 1
 
     for index in range(0, cameraCnt):
         # 反注册回调函数
