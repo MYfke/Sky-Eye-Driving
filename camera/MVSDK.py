@@ -19,7 +19,7 @@ def enum(**enums):
 # 32bit
 # MVSDKdll = OleDLL("./camera/dll/x86/MVSDKmd.dll")
 # 64bit
-MVSDKdll = OleDLL("./dll/x64/MVSDKmd.dll")
+MVSDKdll = OleDLL("./camera/dll/x64/MVSDKmd.dll")
 
 # SDK.h => define 宏定义
 MAX_PARAM_CNT = 1000

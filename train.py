@@ -30,7 +30,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--config", type=str, help="Path, where config file is stored 存放配置文件的路径",
-                        default='experiments/little_car/train/little_car_alg.yaml')
+                        default='./model/experiments/little_car/train/little_car_alg.yaml')
     parser.add_argument('--eval', action='store_true', help="If set, then only evaluation will be done 如果设置，则只进行评估")
     parser.add_argument('--eval_dataset', type=str, default='val',
                         help="Dataset split on which evaluate. Can be 'train' and 'val' 评估的数据集拆分。可以是 'train' 和 'val")
@@ -450,7 +450,6 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
         # dump to tensorboard per-epoch stats
         for title, value in metric_dict.items():
             writer.add_scalar(f"{name}/{title}_epoch", np.mean(value), epoch)
-
     return n_iters_total
 
 

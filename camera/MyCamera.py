@@ -1,6 +1,10 @@
-import time
 
-import torch
+"""
+这个文件是魔改Demo_opencv_byCallBack.py之这个文件得到的，主要提供了操作相机的一些功能
+这个文件里面有两个比较重要的功能，第一个是 init_camera() 函数，这个函数可以自适应初始化相机，并且返回相机对象和数据流对象
+第二个就是 onGetFrameEx(frame, userInfo) 函数，这个函数是个回调函数，即相机每传过来一帧，这个函数就会被调用一次，但是目前的代码是顺序调用的，
+并且没有好的方法将图片拷贝出来，(或许可以试试全局变量)
+"""
 
 from camera.ImageConvert import *
 from camera.MVSDK import *
@@ -11,7 +15,6 @@ import gc
 g_cameraStatusUserInfo = b"statusInfo"
 g_Image_Grabbing_Timer = 10  # unit : second
 g_isStop = 0
-image_package = []
 
 
 # 将图片转码
@@ -59,6 +62,7 @@ def convert(frame):
 
 # 取流回调函数Ex
 # grabbing callback function with userInfo parameter
+# TODO 这里将收集好每个摄像头的帧，然后打包传入模型
 def onGetFrameEx(frame, userInfo):
     if g_isStop == 1:
         return
@@ -72,21 +76,15 @@ def onGetFrameEx(frame, userInfo):
         return
 
     print("BlockId = %d userInfo = %s" % (frame.contents.getBlockId(frame), c_char_p(userInfo).value))
-
-    # TODO 这里将收集好每个摄像头的帧，然后打包传入模型
-
-    # --- end if ---
-    #  cv2.imwrite('D:\Projects\camera\image/' + str(time.time()) + '.jpg', cvImage)
-    global image_package
-    image_package.append(convert(frame))
+    # 此处客户应用程序应将图像拷贝出使用
+    # Here you can copy image data out from frame for your own use
+    # TODO
+    '''
+    
+    '''
     cv2.imshow(f'{userInfo}', convert(frame))
     gc.collect()
     cv2.waitKey(1)
-
-
-def package():
-    global image_package
-    return image_package
 
 
 # 相机连接状态回调函数
@@ -156,6 +154,149 @@ def unsubscribeCameraStatus(camera):
     eventSubscribe.contents.release(eventSubscribe)
     return 0
 
+# 设置软触发
+# set software trigger
+def setSoftTriggerConf(camera):
+    # 创建AcquisitionControl节点
+    # create AcquisitionControl node
+    acqCtrlInfo = GENICAM_AcquisitionControlInfo()
+    acqCtrlInfo.pCamera = pointer(camera)
+    acqCtrl = pointer(GENICAM_AcquisitionControl())
+    nRet = GENICAM_createAcquisitionControl(pointer(acqCtrlInfo), byref(acqCtrl))
+    if (nRet != 0):
+        print("create AcquisitionControl fail!")
+        return -1
+
+    # 设置触发源为软触发
+    # set trigger source to Software
+    trigSourceEnumNode = acqCtrl.contents.triggerSource(acqCtrl)
+    nRet = trigSourceEnumNode.setValueBySymbol(byref(trigSourceEnumNode), b"Software")
+    if (nRet != 0):
+        print("set TriggerSource value [Software] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSourceEnumNode.release(byref(trigSourceEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSourceEnumNode.release(byref(trigSourceEnumNode))
+
+    # 设置触发方式
+    # set trigger selector to FrameStart
+    trigSelectorEnumNode = acqCtrl.contents.triggerSelector(acqCtrl)
+    nRet = trigSelectorEnumNode.setValueBySymbol(byref(trigSelectorEnumNode), b"FrameStart")
+    if (nRet != 0):
+        print("set TriggerSelector value [FrameStart] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+
+    # 打开触发模式
+    # set trigger mode to On
+    trigModeEnumNode = acqCtrl.contents.triggerMode(acqCtrl)
+    nRet = trigModeEnumNode.setValueBySymbol(byref(trigModeEnumNode), b"On")
+    if (nRet != 0):
+        print("set TriggerMode value [On] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigModeEnumNode.release(byref(trigModeEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放相关资源
+    # release node resource at the end of use
+    trigModeEnumNode.release(byref(trigModeEnumNode))
+    acqCtrl.contents.release(acqCtrl)
+
+    return 0
+
+
+# 设置外触发
+# set external trigger
+def setLineTriggerConf(camera):
+    # 创建AcquisitionControl节点
+    # create AcquisitionControl node
+    acqCtrlInfo = GENICAM_AcquisitionControlInfo()
+    acqCtrlInfo.pCamera = pointer(camera)
+    acqCtrl = pointer(GENICAM_AcquisitionControl())
+    nRet = GENICAM_createAcquisitionControl(pointer(acqCtrlInfo), byref(acqCtrl))
+    if (nRet != 0):
+        print("create AcquisitionControl fail!")
+        return -1
+
+    # 设置触发源为外触发Line1
+    # set trigger source to Line1
+    trigSourceEnumNode = acqCtrl.contents.triggerSource(acqCtrl)
+    nRet = trigSourceEnumNode.setValueBySymbol(byref(trigSourceEnumNode), b"Line1")
+    if (nRet != 0):
+        print("set TriggerSource value [Line1] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSourceEnumNode.release(byref(trigSourceEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSourceEnumNode.release(byref(trigSourceEnumNode))
+
+    # 设置触发方式
+    # set trigger selector to FrameStart
+    trigSelectorEnumNode = acqCtrl.contents.triggerSelector(acqCtrl)
+    nRet = trigSelectorEnumNode.setValueBySymbol(byref(trigSelectorEnumNode), b"FrameStart")
+    if (nRet != 0):
+        print("set TriggerSelector value [FrameStart] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigSelectorEnumNode.release(byref(trigSelectorEnumNode))
+
+    # 打开触发模式
+    # set trigger mode to On
+    trigModeEnumNode = acqCtrl.contents.triggerMode(acqCtrl)
+    nRet = trigModeEnumNode.setValueBySymbol(byref(trigModeEnumNode), b"On")
+    if (nRet != 0):
+        print("set TriggerMode value [On] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigModeEnumNode.release(byref(trigModeEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigModeEnumNode.release(byref(trigModeEnumNode))
+
+    # 设置触发沿
+    # set trigger activation to RisingEdge
+    trigActivationEnumNode = acqCtrl.contents.triggerActivation(acqCtrl)
+    nRet = trigActivationEnumNode.setValueBySymbol(byref(trigActivationEnumNode), b"RisingEdge")
+    if (nRet != 0):
+        print("set TriggerActivation value [RisingEdge] fail!")
+        # 释放相关资源
+        # release node resource before return
+        trigActivationEnumNode.release(byref(trigActivationEnumNode))
+        acqCtrl.contents.release(acqCtrl)
+        return -1
+
+    # 需要释放Node资源
+    # release node resource at the end of use
+    trigActivationEnumNode.release(byref(trigActivationEnumNode))
+    acqCtrl.contents.release(acqCtrl)
+    return 0
 
 # 打开相机
 # open camera
@@ -539,67 +680,3 @@ def init_camera():
             streamSourceList[index].contents.release(streamSourceList[index])
             return -1
     return cameraCnt, cameraList, streamSourceList, userInfoList
-
-
-if __name__ == '__main__':
-    cameraCnt, cameraList, streamSourceList, userInfoList = init_camera()
-    # TODO 此处开始建立模型，然后在回调函数中向模型传入图片
-    print("Number of available GPUs: {}".format(torch.cuda.device_count()))
-
-    for index in range(0, cameraCnt):
-        # 开始拉流
-        # start grabbing
-        nRet = streamSourceList[index].contents.startGrabbing(streamSourceList[index], c_ulonglong(0),
-                                                              c_int(GENICAM_EGrabStrategy.grabStrartegySequential))
-        if nRet != 0:
-            print("startGrabbing fail!")
-            # 释放相关资源
-            # release stream source object before return
-            streamSourceList[index].contents.release(streamSourceList[index])
-
-    for i in range(0, 100):
-        if len(image_package) > 5:
-            print(len(image_package))
-            image_package.clear()
-
-        # 自由拉流 x 秒
-        # grabbing x seconds
-        time.sleep(g_Image_Grabbing_Timer)
-        g_isStop = 1
-
-    for index in range(0, cameraCnt):
-        # 反注册回调函数
-        # unsubscribe grabbing callback
-        nRet = streamSourceList[index].contents.detachGrabbingEx(streamSourceList[index], frameCallbackFuncEx,
-                                                                 userInfoList[index])
-        if nRet != 0:
-            print("detachGrabbingEx fail!")
-            # 释放相关资源
-            # release stream source object before return
-            streamSourceList[index].contents.release(streamSourceList[index])
-
-        # 停止拉流
-        # stop grabbing
-        nRet = streamSourceList[index].contents.stopGrabbing(streamSourceList[index])
-        if nRet != 0:
-            print("stopGrabbing fail!")
-            # 释放相关资源
-            # release stream source object before return
-            streamSourceList[index].contents.release(streamSourceList[index])
-
-        # cv2.destroyAllWindows()
-
-        # 关闭相机
-        # close camera
-        camera = cameraList[index]
-        nRet = closeCamera(camera)
-        if nRet != 0:
-            print("closeCamera fail")
-            # 释放相关资源
-            # release stream source object before return
-            streamSourceList[index].contents.release(streamSourceList[index])
-
-        # 释放相关资源
-        # release stream source object at the end of use
-        streamSourceList[index].contents.release(streamSourceList[index])
-    print('end')
