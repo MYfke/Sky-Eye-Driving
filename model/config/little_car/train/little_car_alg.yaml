@@ -2,6 +2,7 @@ title: "little_car_alg"
 kind: "little_car"
 vis_freq: 1000
 vis_n_elements: 10
+device: "cpu"
 
 image_shape: [384, 384]
 
@@ -43,7 +44,7 @@ dataset:
   kind: "little_car"
 
   train:
-    h36m_root: "./data/little_car/"
+    dataset_root: "./data/little_car/"
     labels_path: "./data/little_car/little_car.npy"
     with_damaged_actions: true
     undistort_images: true
@@ -57,7 +58,7 @@ dataset:
     num_workers: 0
 
   val:
-    h36m_root: "./data/little_car/"
+    dataset_root: "./data/little_car/"
     labels_path: "./data/little_car/little_car.npy"
     with_damaged_actions: true
     undistort_images: true
