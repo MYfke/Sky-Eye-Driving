@@ -186,7 +186,7 @@ def detect(model, config, dataloader, device, n_iters_total=0, master=False,
         '''
         ignore_batch = []
 
-        for iter_i, batch in iterator:
+        for iter_i, batch in iterator:  # 每4张图是一个batch，用来预测
             with autograd.detect_anomaly():
                 # measure data loading time
                 data_time = time.time() - end

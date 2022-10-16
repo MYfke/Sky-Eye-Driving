@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument("--local_rank", type=int, help="Local rank of the process on the node 节点上进程的本地等级")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility 可重复性的随机种子")
 
-    parser.add_argument("--logdir", type=str, default="/Vol1/dbstore/datasets/k.iskakov/logs/multi-view-net-repr",
+    parser.add_argument("--logdir", type=str, default="./logs",
                         help="Path, where logs will be stored 路径，将存储日志的位置")
 
     args = parser.parse_args()
@@ -46,31 +46,33 @@ def parse_args():
 
 
 def setup_little_car_dataloaders(config, is_train):
+    """
+    is_train = Ture 时，返回训练集和验证集
+    is_train = False 时，返回空训练集，和正常验证集
+    """
     train_dataloader = None
     if is_train:
         # train  训练集
         train_dataset = little_car.LittleCar(
-            dataset_root=config.dataset.train.h36m_root,
-            # pred_results_path=config.dataset.train.pred_results_path if hasattr(config.dataset.train,
-            #
-            #                                                                     "pred_results_path") else None,
-            labels_path=config.dataset.train.labels_path,
-            image_shape=config.image_shape if hasattr(config, "image_shape") else (256, 256),
             train=True,
             test=False,
-            # with_damaged_actions=config.dataset.train.with_damaged_actions,
-            scale_bbox=config.dataset.train.scale_bbox,
             kind=config.kind,
-            # undistort_images=config.dataset.train.undistort_images,
-            ignore_cameras=config.dataset.train.ignore_cameras if hasattr(config.dataset.train,
-                                                                          "ignore_cameras") else [],
+            image_shape=config.image_shape,
+
+            dataset_root=config.dataset.train.dataset_root,
+            labels_path=config.dataset.train.labels_path,
+
+            scale_bbox=config.dataset.train.scale_bbox,
             crop=config.dataset.train.crop if hasattr(config.dataset.train, "crop") else True,
+            ignore_cameras=config.dataset.train.ignore_cameras if hasattr(config.dataset.train,
+                                                                          "ignore_cameras") else []
+
         )
 
         train_dataloader = DataLoader(
             train_dataset,
             batch_size=config.opt.batch_size,
-            shuffle=config.dataset.train.shuffle,  # debatable
+            shuffle=config.dataset.train.shuffle,  # debatable 有争议的
             collate_fn=dataset_utils.make_collate_fn(randomize_n_views=config.dataset.train.randomize_n_views,
                                                      min_n_views=config.dataset.train.min_n_views,
                                                      max_n_views=config.dataset.train.max_n_views),
@@ -81,20 +83,19 @@ def setup_little_car_dataloaders(config, is_train):
 
     # val  验证集
     val_dataset = little_car.LittleCar(
-        dataset_root=config.dataset.val.h36m_root,
-        # pred_results_path=config.dataset.val.pred_results_path if hasattr(config.dataset.val,
-        #                                                                   "pred_results_path") else None,
         train=False,
         test=True,
-        image_shape=config.image_shape if hasattr(config, "image_shape") else (256, 256),
-        labels_path=config.dataset.val.labels_path,
-        # with_damaged_actions=config.dataset.val.with_damaged_actions,
-        retain_every_n_frames_in_test=config.dataset.val.retain_every_n_frames_in_test,
-        scale_bbox=config.dataset.val.scale_bbox,
         kind=config.kind,
-        # undistort_images=config.dataset.val.undistort_images,
-        ignore_cameras=config.dataset.val.ignore_cameras if hasattr(config.dataset.val, "ignore_cameras") else [],
+        image_shape=config.image_shape,
+
+        dataset_root=config.dataset.val.dataset_root,
+        labels_path=config.dataset.val.labels_path,
+
+        scale_bbox=config.dataset.val.scale_bbox,
         crop=config.dataset.val.crop if hasattr(config.dataset.val, "crop") else True,
+        ignore_cameras=config.dataset.val.ignore_cameras if hasattr(config.dataset.val, "ignore_cameras") else [],
+
+        retain_every_n_frames_in_test=config.dataset.val.retain_every_n_frames_in_test,
     )
 
     val_dataloader = DataLoader(
@@ -112,76 +113,8 @@ def setup_little_car_dataloaders(config, is_train):
     return train_dataloader, val_dataloader,
 
 
-def setup_human36m_dataloaders(config, is_train, distributed_train):  # 设置数据加载器
-    train_dataloader = None
-    if is_train:
-        # train  训练集
-        train_dataset = human36m.Human36MMultiViewDataset(
-            h36m_root=config.dataset.train.h36m_root,
-            pred_results_path=config.dataset.train.pred_results_path if hasattr(config.dataset.train,
-                                                                                "pred_results_path") else None,
-            train=True,
-            test=False,
-            image_shape=config.image_shape if hasattr(config, "image_shape") else (256, 256),
-            labels_path=config.dataset.train.labels_path,
-            with_damaged_actions=config.dataset.train.with_damaged_actions,
-            scale_bbox=config.dataset.train.scale_bbox,
-            kind=config.kind,
-            undistort_images=config.dataset.train.undistort_images,
-            ignore_cameras=config.dataset.train.ignore_cameras if hasattr(config.dataset.train,
-                                                                          "ignore_cameras") else [],
-            crop=config.dataset.train.crop if hasattr(config.dataset.train, "crop") else True,
-        )
 
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if distributed_train else None
-
-        train_dataloader = DataLoader(
-            train_dataset,
-            batch_size=config.opt.batch_size,
-            shuffle=config.dataset.train.shuffle and (train_sampler is None),  # debatable
-            sampler=train_sampler,
-            collate_fn=dataset_utils.make_collate_fn(randomize_n_views=config.dataset.train.randomize_n_views,
-                                                     min_n_views=config.dataset.train.min_n_views,
-                                                     max_n_views=config.dataset.train.max_n_views),
-            num_workers=config.dataset.train.num_workers,
-            worker_init_fn=dataset_utils.worker_init_fn,
-            pin_memory=True
-        )
-
-    # val  验证集
-    val_dataset = human36m.Human36MMultiViewDataset(
-        h36m_root=config.dataset.val.h36m_root,
-        pred_results_path=config.dataset.val.pred_results_path if hasattr(config.dataset.val,
-                                                                          "pred_results_path") else None,
-        train=False,
-        test=True,
-        image_shape=config.image_shape if hasattr(config, "image_shape") else (256, 256),
-        labels_path=config.dataset.val.labels_path,
-        with_damaged_actions=config.dataset.val.with_damaged_actions,
-        retain_every_n_frames_in_test=config.dataset.val.retain_every_n_frames_in_test,
-        scale_bbox=config.dataset.val.scale_bbox,
-        kind=config.kind,
-        undistort_images=config.dataset.val.undistort_images,
-        ignore_cameras=config.dataset.val.ignore_cameras if hasattr(config.dataset.val, "ignore_cameras") else [],
-        crop=config.dataset.val.crop if hasattr(config.dataset.val, "crop") else True,
-    )
-
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=config.opt.val_batch_size if hasattr(config.opt, "val_batch_size") else config.opt.batch_size,
-        shuffle=config.dataset.val.shuffle,
-        collate_fn=dataset_utils.make_collate_fn(randomize_n_views=config.dataset.val.randomize_n_views,
-                                                 min_n_views=config.dataset.val.min_n_views,
-                                                 max_n_views=config.dataset.val.max_n_views),
-        num_workers=config.dataset.val.num_workers,
-        worker_init_fn=dataset_utils.worker_init_fn,
-        pin_memory=True
-    )
-
-    return train_dataloader, val_dataloader, train_sampler
-
-
-def setup_dataloaders(config, is_train=True, distributed_train=False):
+def setup_dataloaders(config, is_train=True):
     if config.dataset.kind == "little_car":
         train_dataloader, val_dataloader = setup_little_car_dataloaders(config, is_train)
     else:
@@ -191,7 +124,7 @@ def setup_dataloaders(config, is_train=True, distributed_train=False):
 
 
 def setup_experiment(config, model_name, is_train=True):
-    prefix = "" if is_train else "eval_"
+    prefix = "train_" if is_train else "eval_"
 
     if config.title:
         experiment_title = config.title
@@ -200,14 +133,14 @@ def setup_experiment(config, model_name, is_train=True):
 
     experiment_title = prefix + experiment_title
 
-    experiment_name = '{}_{}'.format(experiment_title, datetime.now().strftime("%d.%m.%Y-%H：%M：%S"))
+    experiment_name = '{}-{}'.format(experiment_title, datetime.now().strftime("%Y.%m.%d-%H：%M：%S"))
     print("Experiment name: {}".format(experiment_name))
 
     experiment_dir = os.path.join(args.logdir, experiment_name)
-    os.makedirs(experiment_dir, exist_ok=True)
+    os.makedirs(experiment_dir)
 
     checkpoints_dir = os.path.join(experiment_dir, "checkpoints")
-    os.makedirs(checkpoints_dir, exist_ok=True)
+    os.makedirs(checkpoints_dir)
 
     shutil.copy(args.config, os.path.join(experiment_dir, "config.yaml"))
 
@@ -453,36 +386,13 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
     return n_iters_total
 
 
-def init_distributed(args):
-    """
-    初始化分布式训练
-    """
-    if "WORLD_SIZE" not in os.environ or int(os.environ["WORLD_SIZE"]) < 1:
-        return False
-
-    torch.cuda.set_device(args.local_rank)
-
-    assert os.environ["MASTER_PORT"], "set the MASTER_PORT variable or use pytorch launcher"
-    assert os.environ["RANK"], "use pytorch launcher and explicityly state the rank of the process"
-
-    torch.manual_seed(args.seed)
-    torch.distributed.init_process_group(backend="nccl", init_method="env://")
-
-    return True
 
 
 def main(args):
     print("Number of available GPUs: {}".format(torch.cuda.device_count()))
-
-    is_distributed = init_distributed(args)
     master = True
-    if is_distributed and os.environ["RANK"]:
-        master = int(os.environ["RANK"]) == 0
-
-    if is_distributed:
-        device = torch.device(args.local_rank)
-    else:
-        device = torch.device('cpu')
+    config = cfg.load_config(args.config)
+    device = torch.device(config.device)
 
     # config  配置
     config = cfg.load_config(args.config)
@@ -535,7 +445,7 @@ def main(args):
 
     # datasets  数据集
     print("Loading data...")
-    train_dataloader, val_dataloader = setup_dataloaders(config, distributed_train=is_distributed)
+    train_dataloader, val_dataloader = setup_dataloaders(config)
 
     # experiment  实验
     experiment_dir, writer = None, None

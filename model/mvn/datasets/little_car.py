@@ -18,8 +18,8 @@ class LittleCar(Dataset):
     """
 
     def __init__(self,
-                 dataset_root='../../data/little_car',
-                 labels_path='../../data/little_car/little_car.npy',
+                 dataset_root,
+                 labels_path,
                  pred_results_path=None,
                  image_shape=(256, 256),
                  train=True,
