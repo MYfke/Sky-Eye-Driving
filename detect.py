@@ -33,11 +33,11 @@ from model.mvn.models.loss import KeypointsMSELoss, KeypointsMSESmoothLoss, Keyp
     VolumetricCELoss
 
 from model.mvn.utils import img, multiview, op, vis, misc, cfg
-from model.mvn.datasets import human36m, cmupanoptic, example_dataset
-from model.mvn.datasets import utils as dataset_utils
 
-# need this to overcome overflow error with pickling
-import pickle4reducer
+# from model.mvn.datasets import human36m, cmupanoptic, example_dataset
+from model.mvn.datasets import little_car
+
+from model.mvn.datasets import utils as dataset_utils
 
 DEBUG = False
 is_train = False
@@ -61,10 +61,10 @@ def parse_args():
     return args
 
 
-def setup_human36m_dataloaders(config):
+def setup_little_car_dataloaders(config):
     # val
-    val_dataset = human36m.Human36MMultiViewDataset(
-        h36m_root=config.dataset.val.h36m_root,
+    val_dataset = little_car.LittleCar(
+        dataset_root=config.dataset.val.dataset_root,
         pred_results_path=config.dataset.val.pred_results_path if hasattr(
             config.dataset.val, "pred_results_path") else None,
         train=False,
@@ -72,11 +72,9 @@ def setup_human36m_dataloaders(config):
         image_shape=config.image_shape if hasattr(
             config, "image_shape") else (256, 256),
         labels_path=config.dataset.val.labels_path,
-        with_damaged_actions=config.dataset.val.with_damaged_actions,
         retain_every_n_frames_in_test=config.dataset.val.retain_every_n_frames_in_test,
         scale_bbox=config.dataset.val.scale_bbox,
         kind=config.kind,
-        undistort_images=config.dataset.val.undistort_images,
         ignore_cameras=config.dataset.val.ignore_cameras if hasattr(
             config.dataset.val, "ignore_cameras") else [],
         crop=config.dataset.val.crop if hasattr(
@@ -100,58 +98,9 @@ def setup_human36m_dataloaders(config):
     return val_dataloader
 
 
-def setup_cmu_dataloaders(config):
-    # val
-    val_dataset = cmupanoptic.CMUPanopticDataset(
-        cmu_root=config.dataset.val.cmu_root,
-        pred_results_path=config.dataset.val.pred_results_path if hasattr(
-            config.dataset.val, "pred_results_path") else None,
-        train=False,
-        test=True,
-        image_shape=config.image_shape if hasattr(
-            config, "image_shape") else (256, 256),
-        labels_path=config.dataset.val.labels_path,
-        retain_every_n_frames_in_test=config.dataset.val.retain_every_n_frames_in_test,
-        scale_bbox=config.dataset.val.scale_bbox,
-        square_bbox=config.dataset.val.square_bbox if hasattr(
-            config.dataset.val, "square_bbox") else True,
-        kind=config.kind,
-        choose_cameras=config.dataset.val.choose_cameras if hasattr(
-            config.dataset.val, "choose_cameras") else [],
-        ignore_cameras=config.dataset.val.ignore_cameras if hasattr(
-            config.dataset.val, "ignore_cameras") else [],
-        crop=config.dataset.val.crop if hasattr(
-            config.dataset.val, "crop") else True,
-        frames_split_file=config.opt.frames_split_file if hasattr(
-            config.opt, "frames_split_file") else None
-    )
-
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=config.opt.val_batch_size if hasattr(
-            config.opt, "val_batch_size") else config.opt.batch_size,
-        shuffle=config.dataset.val.shuffle,
-        collate_fn=dataset_utils.make_collate_fn(randomize_n_views=config.dataset.val.randomize_n_views,
-                                                 min_n_views=config.dataset.val.min_n_views,
-                                                 max_n_views=config.dataset.val.max_n_views),
-        num_workers=config.dataset.val.num_workers,
-        worker_init_fn=dataset_utils.worker_init_fn,
-        pin_memory=True,
-        drop_last=False
-    )
-
-    return val_dataloader
-
-
-def setup_dataloaders(config, is_train=True, distributed_train=False):
-    if config.dataset.kind == 'human36m':
-        val_dataloader = setup_human36m_dataloaders(config)
-    elif config.dataset.kind in ['cmu', 'cmupanoptic']:
-        val_dataloader = setup_cmu_dataloaders(config)
-    elif config.dataset.kind == 'example':
-        raise NotImplementedError(
-            "Please follow instructions at TESTING_ON_GENERAL_DATASET.md to implement your dataset.")
-        # val_dataloader = setup_example_dataloaders(config)
+def setup_dataloaders(config):
+    if config.dataset.kind == 'little_car':
+        val_dataloader = setup_little_car_dataloaders(config)
     else:
         raise NotImplementedError(
             "Unknown dataset: {}".format(config.dataset.kind))
@@ -170,7 +119,7 @@ def setup_experiment(config, model_name):
     experiment_title = prefix + experiment_title
 
     experiment_name = '{}@{}'.format(experiment_title,
-                                     datetime.now().strftime("%d.%m.%Y-%H:%M:%S"))
+                                     datetime.now().strftime("%d.%m.%Y-%H：%M：%S"))
     print("Experiment name: {}".format(experiment_name))
 
     experiment_dir = os.path.join(args.logdir, experiment_name)
@@ -190,9 +139,9 @@ def setup_experiment(config, model_name):
     return experiment_dir, writer
 
 
-def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_total=0, caption='', master=False,
-              experiment_dir=None, writer=None):
-    name = "train" if is_train else "val"
+def detect(model, config, dataloader, device, n_iters_total=0, master=False,
+           experiment_dir=None, writer=None):
+    name = "val"
     model_type = config.model.name
 
     model.eval()
@@ -216,7 +165,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
     print("Debug Mode: ", DEBUG)
     train_eval_mode = "Demo"
 
-    # no gradients as we are only testing/evaluating
+    # no gradients as we are only testing/evaluating 没有梯度，因为我们只是在测试评估
     with torch.no_grad():
         end = time.time()
 
@@ -244,13 +193,12 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
 
                 if batch is None:
                     print(
-                        f"[{train_eval_mode}, {epoch}] Found None batch: {iter_i}")
+                        f"[{train_eval_mode}] Found None batch: {iter_i}")
                     continue
 
                 if DEBUG:
                     print(f"{train_eval_mode} batch {iter_i}...")
-                    print(
-                        f"[{train_eval_mode}, {epoch}, {iter_i}] Preparing batch... ", end="")
+                    print(f"[{train_eval_mode}, {iter_i}] Preparing batch... ", end="")
 
                 images_batch, keypoints_3d_gt, keypoints_3d_validity_gt, proj_matricies_batch = dataset_utils.prepare_batch(
                     batch, device, config)
@@ -259,8 +207,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                     print("Prepared!")
 
                 if DEBUG:
-                    print(
-                        f"[{train_eval_mode}, {epoch}, {iter_i}] Running {model_type} model... ", end="")
+                    print(f"[{train_eval_mode}, {iter_i}] Running {model_type} model... ", end="")
 
                 keypoints_2d_pred, cuboids_pred, base_points_pred = None, None, None
                 if model_type == "alg" or model_type == "ransac":
@@ -283,7 +230,9 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 n_joints = keypoints_3d_pred.shape[1]
 
                 # Due to differences in model used, it may be possible that the gt and pred keypoints have different scales
-                # Set this difference in scaling in the config.yaml file
+                # Set this difference in scaling in the config.yaml
+                # file由于使用的模型不同，可能 gt 和 pred 关键点有不同的比例 在 config.yaml 文件中设置这个比例差异
+
                 scale_keypoints_3d = config.opt.scale_keypoints_3d if hasattr(
                     config.opt, "scale_keypoints_3d") else 1.0
 
@@ -294,7 +243,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 # TODO: Totally remove for CMU dataset (which doesnt have pelvis-offset errors)?
                 if n_views == 1:
                     print(
-                        f"[{train_eval_mode}, {epoch}, {iter_i}] {config.kind} 1-view case: batch {iter_i}, images {images_batch.shape}")
+                        f"[{train_eval_mode}, {iter_i}] {config.kind} 1-view case: batch {iter_i}, images {images_batch.shape}")
 
                     if config.kind == "human36m":
                         base_joint = 6
@@ -312,7 +261,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 # calculate metrics
                 if DEBUG:
                     print(
-                        f"[{train_eval_mode}, {epoch}, {iter_i}] Calculating metrics... ", end="")
+                        f"[{train_eval_mode}, {iter_i}] Calculating metrics... ", end="")
 
                 # save answers for evalulation
                 if not is_train:
@@ -405,12 +354,12 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                     n_iters_total += 1
 
             if DEBUG:
-                print(f"Training of epoch {epoch}, batch {iter_i} complete!")
+                print(f"Training of batch {iter_i} complete!")
 
-    # save results file
+    # save results file 保存结果文件
     if master:
         checkpoint_dir = os.path.join(
-            experiment_dir, "checkpoints", "{:04}".format(epoch))
+            experiment_dir, "checkpoints")
         os.makedirs(checkpoint_dir, exist_ok=True)
 
         # dump results
@@ -436,44 +385,15 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
 
         # dump to tensorboard per-epoch stats
         for title, value in metric_dict.items():
-            writer.add_scalar(f"{name}/{title}_epoch", np.mean(value), epoch)
+            writer.add_scalar(f"{name}", np.mean(value))
 
-    print(f"Epoch {epoch} {train_eval_mode} complete!")
+    print(f"{train_eval_mode} complete!")
 
     return n_iters_total
 
 
-def init_distributed(args):
-    if "WORLD_SIZE" not in os.environ or int(os.environ["WORLD_SIZE"]) < 1:
-        return False
-
-    torch.cuda.set_device(args.local_rank)
-
-    assert os.environ["MASTER_PORT"], "set the MASTER_PORT variable or use pytorch launcher"
-    assert os.environ["RANK"], "use pytorch launcher and explicitly state the rank of the process"
-
-    torch.manual_seed(args.seed)
-
-    # Default timeout: 30 min
-    # BUT NOTE: Must set `NCCL_BLOCKING_WAIT=1`
-    # NOTE: Timeout doesnt work
-    os.environ["NCCL_BLOCKING_WAIT"] = "1"
-    os.environ['CUDA_VISIBLE_DEVICES'] = "1,2"
-    torch.distributed.init_process_group(backend="nccl", init_method="env://")
-
-    if DEBUG:
-        os.environ["NCCL_DEBUG"] = "INFO"
-
-    return True
-
-
 def main(args):
     print("Number of available GPUs: {}".format(torch.cuda.device_count()))
-
-    # Attempt to fix overflow error with pickle
-    # See https://stackoverflow.com/questions/51562221/python-multiprocessing-overflowerrorcannot-serialize-a-bytes-object-larger-t
-    ctx = torch.multiprocessing.get_context()
-    ctx.reducer = pickle4reducer.Pickle4Reducer()
 
     config = cfg.load_config(args.config)
 
@@ -481,18 +401,8 @@ def main(args):
     DEBUG = config.debug_mode if hasattr(config, "debug_mode") else False
     print("Debugging Mode: ", DEBUG)
 
-    is_distributed = init_distributed(args)
-    print("Using distributed:", is_distributed)
-
     master = True
-    if is_distributed and os.environ["RANK"]:
-        master = int(os.environ["RANK"]) == 0
-
-    if is_distributed:
-        print("Rank:", args.local_rank)
-        device = torch.device(args.local_rank)
-    else:
-        device = torch.device(0)
+    device = torch.device(config.device)
 
     # config
     config.opt.n_iters_per_epoch = config.opt.n_objects_per_epoch // config.opt.batch_size
@@ -503,14 +413,10 @@ def main(args):
         config.opt.n_iters_per_epoch_val = None
 
     model = {
-        "ransac": RANSACTriangulationNet,
+        # "ransac": RANSACTriangulationNet,
         "alg": AlgebraicTriangulationNet,
-        "vol": VolumetricTriangulationNet
+        # "vol": VolumetricTriangulationNet
     }[config.model.name](config, device=device).to(device)
-
-    # NOTE: May be a bad idea to share memory since NCCL used
-    # https://pytorch.org/docs/stable/distributed.html#torch.distributed.Backend
-    # model.share_memory()
 
     if config.model.init_weights:
         state_dict = torch.load(config.model.checkpoint)
@@ -521,29 +427,16 @@ def main(args):
         model.load_state_dict(state_dict, strict=True)
         print("Successfully loaded pretrained weights for whole model")
 
-    # criterion
-    criterion_class = {
-        "MSE": KeypointsMSELoss,
-        "MSESmooth": KeypointsMSESmoothLoss,
-        "MAE": KeypointsMAELoss
-    }[config.opt.criterion]
-
-    if config.opt.criterion == "MSESmooth":
-        criterion = criterion_class(config.opt.mse_smooth_threshold)
-    else:
-        criterion = criterion_class()
-
     print("Loading data...")
     val_dataloader = setup_dataloaders(config)
 
-    # experiment
+    # experiment 实验
     experiment_dir, writer = None, None
     if master:
         experiment_dir, writer = setup_experiment(config, type(model).__name__)
 
-    opt = None
-    one_epoch(model, criterion, opt, config, val_dataloader, device, 0,
-              n_iters_total=0, master=master, experiment_dir=experiment_dir, writer=writer)
+    detect(model=model, config=config, dataloader=val_dataloader, device=device,
+           experiment_dir=experiment_dir, writer=writer)
 
     print("Done.")
 
