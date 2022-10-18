@@ -2,7 +2,7 @@ title: "little_car_alg"
 kind: "little_car"
 vis_freq: 1000
 vis_n_elements: 10
-device: "cpu"
+device: "cuda:0"
 
 image_shape: [384, 384]
 
@@ -10,11 +10,11 @@ opt:
   criterion: "MSESmooth"
   mse_smooth_threshold: 400
 
-  n_objects_per_epoch: 10000
-  n_epochs: 9999
+  n_objects_per_epoch: 16
+  n_epochs: 2
 
-  batch_size: 2
-  val_batch_size: 4
+  batch_size: 1
+  val_batch_size: 1
 
   lr: 0.00001
 
