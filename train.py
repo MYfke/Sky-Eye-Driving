@@ -113,7 +113,6 @@ def setup_little_car_dataloaders(config, is_train):
     return train_dataloader, val_dataloader,
 
 
-
 def setup_dataloaders(config, is_train=True):
     if config.dataset.kind == "little_car":
         train_dataloader, val_dataloader = setup_little_car_dataloaders(config, is_train)
@@ -153,8 +152,9 @@ def setup_experiment(config, model_name, is_train=True):
     return experiment_dir, writer
 
 
-def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_total=0, is_train=True, caption='',
+def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_total=0, is_train=True,
               master=False, experiment_dir=None, writer=None):
+
     name = "train" if is_train else "val"
     model_type = config.model.name
 
@@ -168,16 +168,16 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
     results = defaultdict(list)
 
     # used to turn on/off gradients
-    # 用于关闭渐变
+    # 用于开启或关闭梯度
     grad_context = torch.autograd.enable_grad if is_train else torch.no_grad
     with grad_context():
         end = time.time()
 
-        iterator = enumerate(dataloader)  # TODO 这里可以跟回调函数结合一下
+        iterator = enumerate(dataloader)
         if is_train and config.opt.n_iters_per_epoch is not None:
             iterator = islice(iterator, config.opt.n_iters_per_epoch)
 
-        for iter_i, batch in iterator:
+        for iter_i, batch in iterator:  # 这里batch就是一批图片，比如8个，16个
             with autograd.detect_anomaly():
                 # measure data loading time
                 data_time = time.time() - end
@@ -193,7 +193,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 if model_type == "alg" or model_type == "ransac":
                     keypoints_3d_pred, keypoints_2d_pred, heatmaps_pred, confidences_pred = model(images_batch,
                                                                                                   proj_matricies_batch,
-                                                                                                  batch)  # TODO 此处向模型传入图片
+                                                                                                  batch)  # 此处向模型传入图片
                 elif model_type == "vol":
                     keypoints_3d_pred, heatmaps_pred, volumes_pred, confidences_pred, cuboids_pred, coord_volumes_pred, base_points_pred = model(
                         images_batch, proj_matricies_batch, batch)
@@ -206,23 +206,6 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
 
                 scale_keypoints_3d = config.opt.scale_keypoints_3d if hasattr(config.opt, "scale_keypoints_3d") else 1.0
 
-                # 1-view case
-                if n_views == 1:
-                    if config.kind == "human36m":
-                        base_joint = 6
-                    elif config.kind == "coco":
-                        base_joint = 11
-
-                    keypoints_3d_gt_transformed = keypoints_3d_gt.clone()
-                    keypoints_3d_gt_transformed[:, torch.arange(n_joints) != base_joint] -= keypoints_3d_gt_transformed[
-                                                                                            :,
-                                                                                            base_joint:base_joint + 1]
-                    keypoints_3d_gt = keypoints_3d_gt_transformed
-
-                    keypoints_3d_pred_transformed = keypoints_3d_pred.clone()
-                    keypoints_3d_pred_transformed[:,
-                    torch.arange(n_joints) != base_joint] -= keypoints_3d_pred_transformed[:, base_joint:base_joint + 1]
-                    keypoints_3d_pred = keypoints_3d_pred_transformed
 
                 # calculate loss 计算损失
                 total_loss = 0.0
@@ -231,7 +214,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 total_loss += loss
                 metric_dict[f'{config.opt.criterion}'].append(loss.item())
 
-                # volumetric ce loss
+                # volumetric ce loss  体积损失
                 use_volumetric_ce_loss = config.opt.use_volumetric_ce_loss if hasattr(config.opt,
                                                                                       "use_volumetric_ce_loss") else False
                 if use_volumetric_ce_loss:
@@ -248,7 +231,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 metric_dict['total_loss'].append(total_loss.item())
 
                 if is_train:
-                    opt.zero_grad()
+                    opt.zero_grad()  # 优化器清零
                     total_loss.backward()
 
                     if hasattr(config.opt, "grad_clip"):
@@ -265,7 +248,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                 metric_dict['l2'].append(l2.item())
 
                 # base point l2
-                if base_points_pred is not None:
+                if base_points_pred is not None:  # 体积化测量会用到这里
                     base_point_l2_list = []
                     for batch_i in range(batch_size):
                         base_point_pred = base_points_pred[batch_i]
@@ -281,12 +264,12 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
                     base_point_l2 = 0.0 if len(base_point_l2_list) == 0 else np.mean(base_point_l2_list)
                     metric_dict['base_point_l2'].append(base_point_l2)
 
-                # save answers for evalulation
+                # save answers for evalulation  保存答案以供评估
                 if not is_train:
                     results['keypoints_3d'].append(keypoints_3d_pred.detach().cpu().numpy())
                     results['indexes'].append(batch['indexes'])
 
-                # plot visualization
+                # plot visualization  绘图可视化
                 if master:
                     if n_iters_total % config.vis_freq == 0:  # or total_l2.item() > 500.0:
                         vis_kind = config.kind
@@ -355,7 +338,7 @@ def one_epoch(model, criterion, opt, config, dataloader, device, epoch, n_iters_
 
                     n_iters_total += 1
 
-    # calculate evaluation metrics
+    # calculate evaluation metrics  计算评估指标
     if master:
         if not is_train:
             results['keypoints_3d'] = np.concatenate(results['keypoints_3d'], axis=0)
