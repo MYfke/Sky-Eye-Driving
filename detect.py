@@ -404,7 +404,7 @@ def main(args):
     master = True
     device = torch.device(config.device)
 
-    # config
+    # config    每个epoch要迭代的次数 = 要迭代多少个对象//批量大小
     config.opt.n_iters_per_epoch = config.opt.n_objects_per_epoch // config.opt.batch_size
 
     if hasattr(config.opt, "n_objects_per_epoch_val"):
