@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from model.mvn.datasets import little_car, utils as dataset_utils, human36m
 from model.mvn.models.loss import KeypointsMSELoss, KeypointsMSESmoothLoss, KeypointsMAELoss, KeypointsL2Loss, \
     VolumetricCELoss
-from model.mvn.models.triangulation import AlgebraicTriangulationNet
+from model.mvn.models.triangulation import RANSACTriangulationNet, AlgebraicTriangulationNet, VolumetricTriangulationNet
 from model.mvn.utils import misc
 from model.mvn.utils import cfg, vis
 
@@ -383,9 +383,9 @@ def main(args):
 
     # 有三种模型，此处开始创建模型
     model = {
-        # "ransac": RANSACTriangulationNet,
-        "alg": AlgebraicTriangulationNet,
-        # "vol": VolumetricTriangulationNet
+         "ransac": RANSACTriangulationNet,
+         "alg": AlgebraicTriangulationNet,
+         "vol": VolumetricTriangulationNet
     }[config.model.name](config, device=device).to(device)
 
     if config.model.init_weights:
